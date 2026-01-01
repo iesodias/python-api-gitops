@@ -7,7 +7,7 @@ def test_root():
     response = client.get("/")
     assert response.status_code == 200
     assert "message" in response.json()
-    assert response.json()["message"] == "Hello from Python API!"
+    assert response.json()["message"] == "Hello from CI/CD Pipeline!"
 
 def test_health():
     response = client.get("/health")
