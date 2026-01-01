@@ -33,6 +33,8 @@ jobs:
       
       - name: Update image tag
         run: |
+          # Criar estrutura se não existir
+          mkdir -p platform-gitops/apps/python-api-gitops/overlays/dev
           cd platform-gitops/apps/python-api-gitops/overlays/dev
           
           cat > kustomization.yaml << EOK
