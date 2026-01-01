@@ -1,0 +1,85 @@
+name: GitOps Promotion
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - completed
+    branches: [ main ]
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout application repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get short SHA
+        id: sha
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+      
+      - name: Checkout platform-gitops repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/platform-gitops
+          token: ${{ secrets.GH_PAT }}
+          path: platform-gitops
+      
+      - name: Update image tag
+        run: |
+          cd platform-gitops/apps/python-api-gitops/overlays/dev
+          
+          cat > kustomization.yaml << EOK
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+
+          namespace: python-api-dev
+
+          resources:
+            - ../../base
+
+          images:
+            - name: python-api-gitops
+              newName: ${{ secrets.DOCKERHUB_USERNAME }}/python-api-gitops
+              newTag: ${{ steps.sha.outputs.short_sha }}
+
+          patches:
+            - target:
+                kind: Deployment
+                name: python-api-gitops
+              patch: |-
+                - op: replace
+                  path: /spec/replicas
+                  value: 2
+                - op: add
+                  path: /spec/template/spec/containers/0/env
+                  value:
+                    - name: ENVIRONMENT
+                      value: "dev"
+          EOK
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: platform-gitops
+          token: ${{ secrets.GH_PAT }}
+          commit-message: "chore: update python-api-gitops to ${{ steps.sha.outputs.short_sha }}"
+          title: "🚀 Deploy python-api-gitops:${{ steps.sha.outputs.short_sha }} to dev"
+          body: |
+            ## Changes
+            - Update python-api-gitops image to \`${{ steps.sha.outputs.short_sha }}\`
+            
+            ## Details
+            - **Commit:** ${{ github.sha }}
+            - **Author:** ${{ github.actor }}
+            - **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Merge this PR to deploy to dev environment.
+          branch: deploy/python-api-${{ steps.sha.outputs.short_sha }}
+          delete-branch: true
