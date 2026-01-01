@@ -12,7 +12,7 @@ app = FastAPI(
 @app.get("/")
 async def root():
     return {
-        "message": "Hello from Python API!",
+        "message": "Hello from CI/CD Pipeline!",
         "version": "1.0.0",
         "environment": os.getenv("ENVIRONMENT", "dev")
     }
